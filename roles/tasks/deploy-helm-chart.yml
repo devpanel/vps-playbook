@@ -1,0 +1,11 @@
+---
+- name: create Helm Values file
+  file:
+    path: "/tmp/{{ instnaceName }}.yml"
+    state: touch
+- name: write content to Helm Value file
+  copy:
+    dest: /tmp/{{ instnaceName }}.yml
+    content: "{{ helmValues }}"
+- name: use Helm to install application
+  shell: "helm install {{ instnaceName }} {{ helmChart }} -f /tmp/{{ instnaceName }}.yml -n {{ namespace }} --atomic --timeout 10m0s"

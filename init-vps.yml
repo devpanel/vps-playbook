@@ -1,0 +1,66 @@
+---
+- hosts: localhost
+  connection: local
+  tasks:
+  - name : Init VPS Local Block
+    rescue:
+      - include_tasks: "tasks/dp-task-error-handler.yml"
+    block:
+      - name: write private key to ~/.devpanel/privKey
+        copy:
+          dest: ~/.devpanel/privKey
+          mode: '0400'
+          content: |
+            {{ vps.privKey }}
+
+      - name: Add VPS to host group
+        add_host:
+          hostname: "{{ vps.publicIpAddress }}"
+          groups: vps
+          ansible_ssh_private_key_file: '~/.devpanel/privKey'
+          ansible_host_key_checking: false
+          ansible_user: "{{ vps.vpsUsername }}"
+
+- hosts: all
+  tasks:
+    - name: "install pre-required packages"
+      rescue:
+        - include_tasks: "tasks/dp-task-error-handler.yml"
+      block:
+        - template:
+            src: "roles/files/install-pre-required-packages.sh.j2"
+            dest: "/tmp/install-pre-required-packages.sh"
+        - shell: bash /tmp/install-pre-required-packages.sh >> /tmp/devpanel.logs
+    - include_tasks: "./roles/tasks/install-docker.yml"
+
+- hosts: localhost
+  connection: local
+  tasks:
+    - set_fact:
+        sns_msg:
+          id: "{{ actionId }}"
+          status: "SUCCESS"
+          payload: {}
+
+    - name: Notify action with id {{ actionId }} is completed
+      uri:
+        url: "{{ callbackURL }}"
+        method: "{{ callbackMethod }}"
+        body_format: json
+        headers:
+          Authorization : "Bearer {{ callbackToken }}"
+        body: "{{ sns_msg | to_json }}"
+      when: callbackURL != ""
+      register: _result
+      until: _result.status == 200
+    
+    - name: Send message to SNS
+      register: sns_op
+      sns:
+        subject: "Action {{ actionId }} SUCCESS"
+        msg: "{{ sns_msg | to_json }}"
+        profile: "remote-account"
+        topic: "{{ lookup('env', 'AWS_SNS_TOPIC_NAME') }}"
+        region: "{{ lookup('env', 'AWS_SNS_TOPIC_REGION') }}"
+        message_structure: "json"
+      when: callbackURL == ""

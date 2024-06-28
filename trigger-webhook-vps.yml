@@ -1,0 +1,91 @@
+---
+- hosts: localhost
+  connection: local
+  tasks:
+  - name: Setup Remote Block
+    rescue:
+      - include_tasks: "tasks/dp-task-error-handler.yml"
+    block:
+      - name: Creates private key directory
+        file:
+          path: /tmp/{{ vps.applicationName }}
+          state: directory
+      - name: write private key to /tmp/{{ vps.applicationName }}/privKey
+        copy:
+          dest: /tmp/{{ vps.applicationName }}/privKey
+          mode: '0400'
+          content: |
+            {{ vps.privKey }}
+
+      - name: Add VPS to host group
+        add_host:
+          hostname: "{{ vps.publicIpAddress }}"
+          groups: vps
+          ansible_ssh_private_key_file: /tmp/{{ vps.applicationName }}/privKey
+          ansible_host_key_checking: false
+          ansible_user: "{{ vps.username }}"
+
+- hosts: vps
+  connection: ssh
+  vars:
+    workingDir: "~/.devpanel/{{ vps.applicationName }}"
+  tasks:
+    - name: "Jump into VPS to execute commands"
+      rescue:
+        - include_tasks: "tasks/dp-task-error-handler.yml"
+      block:
+        - name: "check {{ workingDir }} is available or not"
+          stat:
+            path: "{{ workingDir }}"
+          register: workingDirStat
+
+        - name: generate executed script
+          template:
+            src: "roles/files/trigger-vps-webhook.sh.j2"
+            dest: "{{ workingDir }}/data/webserver/.devpanel/trigger-vps-webhook.sh"
+
+        - name: "echo if {{ workingDir }} is already existed"
+          block:
+            - shell:
+                chdir: "{{ workingDir }}"
+                cmd: |
+                  docker compose exec webserver bash -c "cd \$APP_ROOT; bash .devpanel/trigger-vps-webhook.sh; rm -rf .devpanel/trigger-vps-webhook.sh" > devpanel.git.logs;
+          when: workingDirStat.stat.exists
+
+
+- hosts: localhost
+  connection: local
+  tasks:
+    - name: Delete privatekey directory
+      file:
+        path: /tmp/{{ vps.applicationName }}
+        state: absent
+
+    - set_fact:
+        sns_msg:
+          id: "{{ actionId }}"
+          status: "SUCCESS"
+          payload: {}
+
+    - name: Notify action with id {{ actionId }} is completed
+      uri:
+        url: "{{ callbackURL }}"
+        method: "{{ callbackMethod }}"
+        body_format: json
+        headers:
+          Authorization : "Bearer {{ callbackToken }}"
+        body: "{{ sns_msg | to_json }}"
+      when: callbackURL != ""
+      register: _result
+      until: _result.status == 200
+
+    - name: Send message to SNS
+      register: sns_op
+      sns:
+        subject: "Action {{ actionId }} SUCCESS"
+        msg: "{{ sns_msg | to_json }}"
+        profile: "remote-account"
+        topic: "{{ lookup('env', 'AWS_SNS_TOPIC_NAME') }}"
+        region: "{{ lookup('env', 'AWS_SNS_TOPIC_REGION') }}"
+        message_structure: "json"
+      when: callbackURL == ""

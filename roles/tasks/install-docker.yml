@@ -1,0 +1,18 @@
+---
+- name: "Get list installed packages"
+  package_facts:
+    manager: "auto"
+
+- name: "Docker is not existed"
+  when: "'docker-ce' not in ansible_facts.packages"
+  block:
+  - name: Copy running file to remote
+    template:
+      src: "/app/ansible/private/roles/files/install-docker.sh.j2"
+      dest: "/tmp/docker-install.sh"
+
+  - name: Install docker
+    shell: bash /tmp/docker-install.sh >> /tmp/devpanel.logs
+
+  - name: Reset ssh connection to allow user added to docker group in the docker role to take effect.
+    meta: reset_connection

@@ -1,0 +1,18 @@
+---
+- set_fact:
+    sns_msg:
+      id: "{{ actionId }}"
+      status: "ERROR"
+      payload: {}
+
+- name: Notify action with id {{ actionId }} is error
+  uri:
+    url: "{{ callbackURL }}"
+    method: "{{ callbackMethod }}"
+    body_format: json
+    headers:
+      Authorization : "Bearer {{ callbackToken }}"
+      # traceparent: "{{ lookup('env', 'TRACEPARENT') }}"
+    body: "{{ sns_msg | to_json }}"
+  register: _result
+  until: _result.status == 200

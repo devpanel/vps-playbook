@@ -1,0 +1,37 @@
+#!/bin/bash
+set -e
+
+cd $APP_ROOT
+FILES_MODIFIED=$(git ls-files -m)
+CONFIF_FILES_PATH=$APP_ROOT/.devpanel/config.yml
+git config --global user.email "devpanel_bot@devpanel.com"
+git config --global user.name "devpanel_bot"
+rm -rf lost+found/
+
+#==  Pull new code
+echo "==================Pull new code==================================="
+if [[ -z "$FILES_MODIFIED" ]]; then
+  git pull
+else
+  git stash >> /dev/null
+  git reset --hard HEAD
+  git pull
+  git stash pop >> /dev/null
+fi
+#==  Install yq for parsing yaml file
+if [[ ! $(which yq >/dev/null) ]]; then
+  sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+  sudo chmod a+x /usr/local/bin/yq
+fi
+
+#== Execute git hook
+BRANCH=$(git symbolic-ref --short HEAD)
+if [[ -f "$CONFIF_FILES_PATH" ]]; then
+  echo "==================Parse command from yaml files==================="
+  COMMANDS=$(yq e -P ".hooks.git_hooks.push[] | select(.branch == \""$BRANCH"\") | .cmd" $CONFIF_FILES_PATH )
+  echo $COMMANDS;
+  echo "==================Execute  command================================"
+
+  bash -c "$COMMANDS" >> /tmp/trigger-githook.logs
+  echo "Commands $COMMANDS have been excuted";
+fi
