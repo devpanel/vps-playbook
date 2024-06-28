@@ -8,7 +8,7 @@
   block:
   - name: Copy running file to remote
     template:
-      src: "/app/ansible/private/roles/files/install-docker.sh.j2"
+      src: "/app/ansible/vps-playbook/roles/files/install-docker.sh.j2"
       dest: "/tmp/docker-install.sh"
 
   - name: Install docker

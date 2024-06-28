@@ -1,0 +1,42 @@
+services:
+  webserver:
+    image: {{ application.containerImage }}
+    restart: always
+    ports:
+      - 80:80
+      - 443:443
+    environment:
+      - APP_ROOT={{ application.appRoot }}
+      - WEB_ROOT={{ application.webRoot }}
+      - SERVER_NAME=localhost
+      - DB_HOST=database
+      - DB_PORT=3306
+      - DB_DRIVER={{ dbDriver }}
+      - DB_NAME={{ vps.databaseName }}
+      - DB_PASSWORD={{ vps.databasePassword }}
+      - DB_USER={{ vps.databaseUsername }}
+      - DP_APP_ID={{ application.id }}
+    volumes:
+      - ./data/webserver/:/var/www/html/:rw
+{% if appContainerName == 'php' %}
+    depends_on:
+      database:
+        condition: service_healthy
+  database:
+    image: mysql:8.0
+    restart: always
+    ports:
+      - 3306:3306
+    volumes:
+      - "./data/mysql/:/var/lib/mysql/"
+    environment:
+      - MYSQL_ALLOW_EMPTY_PASSWORD=yes
+      - MYSQL_DATABASE={{ vps.databaseName }}
+      - MYSQL_USER={{ vps.databaseUsername }}
+      - MYSQL_PASSWORD={{ vps.databasePassword }}
+    healthcheck:
+      test: mysql --user=$MYSQL_USER --password=$MYSQL_PASSWORD --execute "USE $$MYSQL_DATABASE; SHOW TABLES;" || exit 1
+      interval: 1m
+      timeout: 20s
+      retries: 3
+{% endif %}

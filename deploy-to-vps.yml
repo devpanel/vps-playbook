@@ -1,0 +1,163 @@
+---
+- hosts: localhost
+  connection: local
+  vars:
+    applicationName: "{{ application.name }}"
+    applicationType: "{{ application.type }}"
+    namespace: "{{ workspace.name }}"
+    archiveName: "{{ application.name }}-code-{{ actionId }}"
+  tasks:
+    - name: "Rollout application to deployment"
+      rescue:
+        - include_tasks: "./tasks/dp-task-error-handler.yml"
+      block:
+        - include_tasks: "/app/ansible/playbooks/tasks/dp-get-app-info.yml"
+
+        - name: write private key to ~/.devpanel/privKey
+          copy:
+            dest: ~/.devpanel/privKey
+            mode: '0400'
+            content: |
+              {{ vps.privKey }}
+
+        - name: "Get first pod of application"
+          shell: |
+            kubectl get pods -n {{ namespace }} --selector app.kubernetes.io/instance={{ applicationName }} -o jsonpath='{.items[0].metadata.name}' --field-selector status.phase=Running
+          register: podName
+
+        - name: add pod host
+          add_host:
+            hostname: "{{ podName.stdout }}"
+            groups:
+            - executedPods
+            ansible_kubectl_pod: "{{ podName.stdout }}"
+            ansible_kubectl_namespace: "{{ namespace }}"
+            ansible_kubectl_container: "{{ appContainerName }}"
+            dbHost: "{{ dbHost }}"
+            rootUser: "{{ rootUser }}"
+            rootPassword: "{{ rootPassword }}"
+            archiveName: "{{ archiveName }}"
+
+        - name: Add VPS to host group
+          add_host:
+            hostname: "{{ vps.publicIpAddress }}"
+            groups:
+            - vps
+            ansible_ssh_private_key_file: '~/.devpanel/privKey'
+            ansible_host_key_checking: false
+            ansible_user: "{{ vps.username }}"
+            archiveName: "{{ archiveName }}"
+
+# TODO:
+# 1. ansible jumps into the VPS
+# 2. ansible checks if the working application directory is not existing, ansible will create ($HOME/.devpanel/{{ application.name }}/)
+# 3. override docker-compose.yml file in the application directory.
+- hosts: vps
+  connection: ssh
+  vars:
+    workingDir: "~/.devpanel/{{ application.name }}"
+  tasks:
+    - name: "Prepage for VPS"
+      rescue:
+        - include_tasks: "./tasks/dp-task-error-handler.yml"
+      block:
+        - name: "check {{ workingDir }} is available or not"
+          stat:
+            path: "{{ workingDir }}"
+          register: workingDirStat
+
+        - name: "create {{ workingDir }} is not existed"
+          block:
+            - file:
+                path: "{{ item }}"
+                state: directory
+                recurse: yes
+              with_items:
+                - "{{ workingDir }}" # working directory
+                - "{{ workingDir }}/data/mysql/" # mysql mount volume
+                - "{{ workingDir }}/data/webserver/" # webserver mount volume
+                - "{{ workingDir }}/data/files/" # bash files
+            # start docker-compose
+            - template:
+                src: "roles/vps/templates/docker-compose.yml.j2"
+                dest: "{{ workingDir }}/docker-compose.yml"
+          when: workingDirStat.stat.exists == false
+
+
+# TODO:
+# 1. ansible jumps into the container to compress $APP_ROOT content to a zip file ( /tmp/{{ archiveName }}.zip ).
+# 2. ansible dumps database to .devpanel/dumps/db.sql.gz and append to the zip file.
+# 3. ansible uses `rsync` and `ssh` to move zip file from /tmp/{{ archiveName }}.zip to <VPS>:/tmp/{{ archiveName }}.zip
+
+- hosts: executedPods
+  connection: kubectl
+  vars:
+    dest: "~/.devpanel/{{ application.name }}/data/webserver/"
+  tasks:
+    - name: "Jump into application pod to execute commands"
+      rescue:
+        - include_tasks: "./tasks/dp-task-error-handler.yml"
+      block:
+        - set_fact:
+            dumpFilename: "{{ application.name }}-db-{{ lookup('pipe','date +%Y-%m-%d-%H-%M-%S') }}"
+            execFileName: "{{ application.name }}-{{ lookup('pipe','date +%Y-%m-%d-%H-%M-%S') }}.sh"
+
+        - name: generate executed script
+          template:
+            src: "./roles/vps/templates/executed-file.sh.j2"
+            dest: "/tmp/{{ execFileName }}"
+
+        - name: run executed script
+          shell: bash "/tmp/{{ execFileName }}" >> /tmp/devpanel.logs
+
+# TODO:
+
+# 1. run `docker compose up` if need it.
+# 2. Config application
+- hosts: vps
+  connection: ssh
+  vars:
+    workingDir: "~/.devpanel/{{ application.name }}"
+  tasks:
+    - name: "Jump into VPS to execute commands"
+      rescue:
+        - include_tasks: "./tasks/dp-task-error-handler.yml"
+      block:
+        - name: "Start docker container"
+          shell:
+            chdir: "{{ workingDir }}"
+            cmd: docker compose pull && docker compose up -d
+
+        - name: "Config the application"
+          shell:
+            chdir: "{{ workingDir }}"
+            cmd: |
+              docker compose exec webserver bash -c "cd \$APP_ROOT; bash .devpanel/re-config.sh" >> devpanel.logs;
+          args:
+            warn: false
+          when: workingDirStat.stat.exists
+
+
+- hosts: localhost
+  connection: local
+  tasks:
+    - name: "Jump back to localhost to notify SUCCESS"
+      rescue:
+        - include_tasks: "./tasks/dp-task-error-handler.yml"
+      block:
+      - set_fact:
+          sns_msg:
+            id: "{{ actionId }}"
+            status: "SUCCESS"
+            payload: {}
+
+      - name: Notify action with id {{ actionId }} is completed
+        uri:
+          url: "{{ callbackURL }}"
+          method: "{{ callbackMethod }}"
+          body_format: json
+          # headers:
+          #   Authorization : "Bearer {{ callbackToken }}"
+          body: "{{ sns_msg | to_json }}"
+        register: _result
+        until: _result.status == 200
