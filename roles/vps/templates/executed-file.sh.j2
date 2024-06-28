@@ -1,0 +1,53 @@
+#!/bin/sh
+set -e
+
+WORKING_DIR="/tmp"
+ZIP_FILE="$WORKING_DIR/{{ archiveName }}.zip"
+
+DUMPS_DIR="$APP_ROOT/.devpanel/dumps"
+
+echo "sudo apt-get install -y rsync ssh zip"
+sudo apt-get update
+sudo apt-get install -y rsync ssh
+cd $WORKING_DIR;
+
+{% if appContainerName == 'php' %}
+  # Mysql run on php container only
+  {% if onDatabase %}
+    if [ ! -d $DUMPS_DIR ]; then
+      echo "$DUMPS_DIR is not exist, creating $DUMPS_DIR";
+      mkdir -p $DUMPS_DIR;
+    fi
+    echo "Dump database to $APP_ROOT/.devpanel/dumps/db.sql.gz"
+    mysqldump -h$DB_HOST -P$DB_PORT -u$DB_USER -p$DB_PASSWORD $DB_NAME > $WORKING_DIR/db.sql --no-tablespaces
+    tar czf $DUMPS_DIR/db.sql.tgz -C $WORKING_DIR db.sql
+  {% endif %}
+{% endif %}
+
+{% if onSourceCode %}
+if [ -f /tmp/tmp_key ]; then
+	echo "Remove temorary key"
+	sudo rm /tmp/tmp_key;
+fi
+
+echo "Generate temporary key to connect to the VPS...";
+echo "{{ vps.privKey }}" > /tmp/tmp_key;
+chmod 0400 /tmp/tmp_key;
+
+echo "Moving file from container to VPS..."
+echo "rsync --timeout=1800 -azh -e "ssh -o StrictHostKeyChecking=no -i /tmp/tmp_key" $APP_ROOT {{ vps.username }}@{{ vps.publicIpAddress }}:{{ dest }};"
+sudo rsync --timeout=1800 -azh -e "ssh -o StrictHostKeyChecking=no -i /tmp/tmp_key" $APP_ROOT/. {{ vps.username }}@{{ vps.publicIpAddress }}:{{ dest }};
+echo "Done"
+
+echo "Remove temorary key"
+sudo rm /tmp/tmp_key;
+{% endif %}
+
+
+{% if appContainerName == 'php' %}
+  # Mysql run on php container only
+	{% if onDatabase %}
+	echo "Remove db file"
+	rm $WORKING_DIR/db.sql
+	{% endif %}
+{% endif %}
