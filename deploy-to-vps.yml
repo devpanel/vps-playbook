@@ -85,9 +85,7 @@
 
 
 # TODO:
-# 1. ansible jumps into the container to compress $APP_ROOT content to a zip file ( /tmp/{{ archiveName }}.zip ).
-# 2. ansible dumps database to .devpanel/dumps/db.sql.gz and append to the zip file.
-# 3. ansible uses `rsync` and `ssh` to move zip file from /tmp/{{ archiveName }}.zip to <VPS>:/tmp/{{ archiveName }}.zip
+# 1. ansible jumps into the container to `rsync` $APP_ROOT content   to VPS
 
 - hosts: executedPods
   connection: kubectl
@@ -111,7 +109,6 @@
           shell: bash "/tmp/{{ execFileName }}" >> /tmp/devpanel.logs
 
 # TODO:
-
 # 1. run `docker compose up` if need it.
 # 2. Config application
 - hosts: vps
