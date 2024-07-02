@@ -77,10 +77,6 @@
                 - "{{ workingDir }}/data/mysql/" # mysql mount volume
                 - "{{ workingDir }}/data/webserver/" # webserver mount volume
                 - "{{ workingDir }}/data/files/" # bash files
-            # start docker-compose
-            - template:
-                src: "roles/vps/templates/docker-compose.yml.j2"
-                dest: "{{ workingDir }}/docker-compose.yml"
           when: workingDirStat.stat.exists == false
 
 
@@ -124,7 +120,12 @@
           stat:
             path: "{{ workingDir }}"
           register: workingDirStat
-          
+
+        - name: "Override docker compose file"
+          template:
+            src: "roles/vps/templates/docker-compose.yml.j2"
+            dest: "{{ workingDir }}/docker-compose.yml"
+
         - name: "Start docker container"
           shell:
             chdir: "{{ workingDir }}"
