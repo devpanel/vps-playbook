@@ -120,6 +120,11 @@
       rescue:
         - include_tasks: "./tasks/dp-task-error-handler.yml"
       block:
+        - name: "check {{ workingDir }} is available or not"
+          stat:
+            path: "{{ workingDir }}"
+          register: workingDirStat
+          
         - name: "Start docker container"
           shell:
             chdir: "{{ workingDir }}"
