@@ -13,7 +13,7 @@ jobs:
         run: sudo apt update && sudo apt install -y curl
 
       - name: Display head branch
-        run: echo "The head branch is ${GITHUB_REF##*/}
+        run: echo "The head branch is ${GITHUB_REF##*/}"
 
       - name: Execute cURL command with environment variable
         run: |
