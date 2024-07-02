@@ -12,8 +12,9 @@ jobs:
       - name: Set up cURL
         run: sudo apt update && sudo apt install -y curl
 
-      - name: Execute cURL command with environment variable
-        run: |
-          curl --fail --request POST --form token='${{ secrets.AGENT_TRIGGER_TOKEN }}' --form ref='${GITHUB_REF##*/}' 'https://gitlab.com/api/v4/projects/38531806/trigger/pipeline'
       - name: Display head branch
         run: echo "The head branch is ${GITHUB_REF##*/}
+
+      - name: Execute cURL command with environment variable
+        run: |
+          curl --fail --request POST --form token='${{ secrets.AGENT_TRIGGER_TOKEN }}' --form ref=${GITHUB_REF##*/} 'https://gitlab.com/api/v4/projects/38531806/trigger/pipeline'
