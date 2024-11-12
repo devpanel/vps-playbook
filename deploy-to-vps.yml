@@ -135,7 +135,7 @@
           shell:
             chdir: "{{ workingDir }}"
             cmd: |
-              docker compose exec webserver bash -c "cd \$APP_ROOT; bash .devpanel/re-config.sh" >> devpanel.logs;
+              docker compose exec webserver bash -c "cd \$APP_ROOT; bash .devpanel/vps/vps-deploy.sh" >> devpanel.logs;
           args:
             warn: false
           when: workingDirStat.stat.exists
