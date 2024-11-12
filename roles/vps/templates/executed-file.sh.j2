@@ -18,9 +18,16 @@ cd $WORKING_DIR;
       echo "$DUMPS_DIR is not exist, creating $DUMPS_DIR";
       mkdir -p $DUMPS_DIR;
     fi
-    echo "Dump database to $APP_ROOT/.devpanel/dumps/db.sql.gz"
+    echo "Dump database to $APP_ROOT/.devpanel/vps/dumps/db.sql.gz"
     mysqldump -h$DB_HOST -P$DB_PORT -u$DB_USER -p$DB_PASSWORD $DB_NAME > $WORKING_DIR/db.sql --no-tablespaces
     tar czf $DUMPS_DIR/db.sql.tgz -C $WORKING_DIR db.sql
+
+cat << EOF > $APP_ROOT/.devpanel/vps/devploy.sh
+    if [[ \$(mysql -h\$DB_HOST -P\$DB_PORT -u\$DB_USER -p\$DB_PASSWORD \$DB_NAME -e "show tables;") == '' ]]; then
+
+    fi
+EOF
+
   {% endif %}
 {% endif %}
 
