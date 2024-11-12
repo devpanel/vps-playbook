@@ -1,8 +1,4 @@
 ---
-- name: "Get list installed packages"
-  package_facts:
-    manager: "auto"
-
 - name: "Docker is not existed"
   block:
   - name: Copy running file to remote
