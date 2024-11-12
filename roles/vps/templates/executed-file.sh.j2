@@ -1,26 +1,35 @@
 #!/bin/sh
 set -e
 
-WORKING_DIR="/tmp"
-ZIP_FILE="$WORKING_DIR/{{ archiveName }}.zip"
-
-DUMPS_DIR="$APP_ROOT/.devpanel/dumps"
+TMP_DIR="/tmp"
+DEPLOY_DIR="$APP_ROOT/.devpanel/vps"
 
 echo "sudo apt-get install -y rsync ssh zip"
 sudo apt-get update
 sudo apt-get install -y rsync ssh
-cd $WORKING_DIR;
+cd $TMP_DIR;
 
 {% if appContainerName == 'php' %}
   # Mysql run on php container only
   {% if onDatabase %}
-    if [ ! -d $DUMPS_DIR ]; then
-      echo "$DUMPS_DIR is not exist, creating $DUMPS_DIR";
-      mkdir -p $DUMPS_DIR;
+    if [ ! -d $DEPLOY_DIR ]; then
+      echo "$DEPLOY_DIR is not exist, creating $DEPLOY_DIR";
+      mkdir -p $DEPLOY_DIR/dumps;
     fi
-    echo "Dump database to $APP_ROOT/.devpanel/dumps/db.sql.gz"
-    mysqldump -h$DB_HOST -P$DB_PORT -u$DB_USER -p$DB_PASSWORD $DB_NAME > $WORKING_DIR/db.sql --no-tablespaces
-    tar czf $DUMPS_DIR/db.sql.tgz -C $WORKING_DIR db.sql
+    echo "Dump database to $APP_ROOT/.devpanel/vps/dumps/db.sql.gz"
+    mysqldump -h$DB_HOST -P$DB_PORT -u$DB_USER -p$DB_PASSWORD $DB_NAME > $TMP_DIR/db.sql --no-tablespaces
+    tar czf $DEPLOY_DIR/dumps/db.sql.tgz -C $TMP_DIR db.sql
+
+cat << EOF > $DEPLOY_DIR/vps-deploy.sh
+#!/bin/bash
+if [[ \$(mysql -h\$DB_HOST -P\$DB_PORT -u\$DB_USER -p\$DB_PASSWORD \$DB_NAME -e "show tables;") == '' ]]; then
+  SQLFILE=db.sql
+  tar xzf $DEPLOY_DIR/dumps/db.sql.tgz -C /tmp/
+  mysql -h\$DB_HOST -P\$DB_PORT -u\$DB_USER -p\$DB_PASSWORD \$DB_NAME < /tmp/\$SQLFILE
+  rm -rf $DEPLOY_DIR
+fi
+EOF
+
   {% endif %}
 {% endif %}
 
@@ -41,13 +50,13 @@ echo "Done"
 
 echo "Remove temorary key"
 sudo rm /tmp/tmp_key;
+sudo rm -rf $DEPLOY_DIR
 {% endif %}
-
 
 {% if appContainerName == 'php' %}
   # Mysql run on php container only
 	{% if onDatabase %}
 	echo "Remove db file"
-	rm $WORKING_DIR/db.sql
+	rm $TMP_DIR/db.sql
 	{% endif %}
 {% endif %}

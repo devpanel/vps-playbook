@@ -1,10 +1,5 @@
 ---
-- name: "Get list installed packages"
-  package_facts:
-    manager: "auto"
-
 - name: "Docker is not existed"
-  when: "'docker-ce' not in ansible_facts.packages"
   block:
   - name: Copy running file to remote
     template:
