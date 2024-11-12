@@ -24,7 +24,7 @@ cat << EOF > $DEPLOY_DIR/vps-deploy.sh
 #!/bin/bash
 if [[ \$(mysql -h\$DB_HOST -P\$DB_PORT -u\$DB_USER -p\$DB_PASSWORD \$DB_NAME -e "show tables;") == '' ]]; then
   SQLFILE=db.sql
-  tar xzf $DEPLOY_DIR/db.sql.tgz -C /tmp/
+  tar xzf $DEPLOY_DIR/dumps/db.sql.tgz -C /tmp/
   mysql -h\$DB_HOST -P\$DB_PORT -u\$DB_USER -p\$DB_PASSWORD \$DB_NAME < /tmp/\$SQLFILE
   rm -rf $DEPLOY_DIR
 fi
