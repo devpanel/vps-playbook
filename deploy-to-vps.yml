@@ -76,7 +76,6 @@
                 - "{{ workingDir }}" # working directory
                 - "{{ workingDir }}/data/mysql/" # mysql mount volume
                 - "{{ workingDir }}/data/webserver/" # webserver mount volume
-                - "{{ workingDir }}/data/files/" # bash files
           when: workingDirStat.stat.exists == false
 
 
@@ -103,6 +102,7 @@
 
         - name: run executed script
           shell: bash "/tmp/{{ execFileName }}" >> /tmp/devpanel.logs
+
 
 # TODO:
 # 1. run `docker compose up` if need it.
@@ -131,14 +131,52 @@
             chdir: "{{ workingDir }}"
             cmd: docker compose pull && docker compose up -d
 
-        - name: "Config the application"
+        - name: "Deploy the application"
           shell:
             chdir: "{{ workingDir }}"
             cmd: |
               docker compose exec webserver bash -c "cd \$APP_ROOT; bash .devpanel/vps/vps-deploy.sh" >> devpanel.logs;
           args:
             warn: false
-          when: workingDirStat.stat.exists
+
+        - name: "Correct file permisions"
+          block:
+            - name: Determine static files backdrop
+              set_fact:
+                staticFiles: "files"
+                clearCache: "drush cc all"
+              when: applicationType is regex("^backdrop+")
+            - name: Determine static files drupal
+              set_fact:
+                staticFiles: "sites/default/files"
+                clearCache: "drush cr || drush cc all"
+              when: applicationType is regex("^drupal+")
+            - name: Determine static files Wordpress
+              set_fact:
+                staticFiles: "wp-content/uploads"
+              when: applicationType is regex("^wordpress+")
+            - name: Determine static files Joomla
+              set_fact:
+                staticFiles: "images"
+              when: applicationType is regex("^joomla+")
+
+            - name: "Correct File permission"
+              shell:
+                chdir: "{{ workingDir }}"
+                cmd: |
+                  docker compose exec webserver bash -c "cd \$WEB_ROOT; sudo chown -R www-data:www {{ staticFiles }} && sudo chmod 775 {{ staticFiles }}" >> devpanel.logs;
+              when: staticFiles is defined
+              args:
+                warn: false
+            - name: "Clear cache"
+              shell:
+                chdir: "{{ workingDir }}"
+                cmd: |
+                  docker compose exec webserver bash -c "cd \$WEB_ROOT; {{ clearCache }}" >> devpanel.logs;
+              when: clearCache is defined
+              args:
+                warn: false
+
 
 
 - hosts: localhost

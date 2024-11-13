@@ -44,8 +44,8 @@ echo "{{ vps.privKey }}" > /tmp/tmp_key;
 chmod 0400 /tmp/tmp_key;
 
 echo "Moving file from container to VPS..."
-echo "rsync --timeout=1800 -azh -e "ssh -o StrictHostKeyChecking=no -i /tmp/tmp_key" $APP_ROOT {{ vps.username }}@{{ vps.publicIpAddress }}:{{ dest }};"
-sudo rsync --timeout=1800 -azh -e "ssh -o StrictHostKeyChecking=no -i /tmp/tmp_key" $APP_ROOT/. {{ vps.username }}@{{ vps.publicIpAddress }}:{{ dest }};
+echo "rsync -azh --omit-dir-times -e "ssh -o StrictHostKeyChecking=no -i /tmp/tmp_key" $APP_ROOT {{ vps.username }}@{{ vps.publicIpAddress }}:{{ dest }};"
+sudo rsync -azh --omit-dir-times -e "ssh -o StrictHostKeyChecking=no -i /tmp/tmp_key" $APP_ROOT/. {{ vps.username }}@{{ vps.publicIpAddress }}:{{ dest }};
 echo "Done"
 
 echo "Remove temorary key"
