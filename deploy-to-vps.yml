@@ -76,10 +76,6 @@
                 - "{{ workingDir }}" # working directory
                 - "{{ workingDir }}/data/mysql/" # mysql mount volume
                 - "{{ workingDir }}/data/webserver/" # webserver mount volume
-            # start docker-compose
-            - template:
-                src: "roles/vps/templates/docker-compose.yml.j2"
-                dest: "{{ workingDir }}/docker-compose.yml"
           when: workingDirStat.stat.exists == false
 
 
@@ -120,6 +116,16 @@
       rescue:
         - include_tasks: "./tasks/dp-task-error-handler.yml"
       block:
+        - name: "check {{ workingDir }} is available or not"
+          stat:
+            path: "{{ workingDir }}"
+          register: workingDirStat
+
+        - name: "Override docker compose file"
+          template:
+            src: "roles/vps/templates/docker-compose.yml.j2"
+            dest: "{{ workingDir }}/docker-compose.yml"
+
         - name: "Start docker container"
           shell:
             chdir: "{{ workingDir }}"
@@ -171,7 +177,7 @@
               args:
                 warn: false
 
-      
+
 
 - hosts: localhost
   connection: local
