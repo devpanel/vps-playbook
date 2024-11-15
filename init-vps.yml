@@ -23,15 +23,11 @@
 
 - hosts: all
   tasks:
-    - name: "install pre-required packages"
+    - name: "Install Docker"
       rescue:
         - include_tasks: "tasks/dp-task-error-handler.yml"
       block:
-        - template:
-            src: "roles/files/install-pre-required-packages.sh.j2"
-            dest: "/tmp/install-pre-required-packages.sh"
-        - shell: bash /tmp/install-pre-required-packages.sh >> /tmp/devpanel.logs
-    - include_tasks: "./roles/tasks/install-docker.yml"
+        - include_tasks: "./roles/tasks/install-docker.yml"
 
 - hosts: localhost
   connection: local
@@ -53,7 +49,7 @@
       when: callbackURL != ""
       register: _result
       until: _result.status == 200
-    
+
     - name: Send message to SNS
       register: sns_op
       sns:

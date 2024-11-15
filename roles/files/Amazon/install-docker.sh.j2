@@ -1,0 +1,25 @@
+#!/bin/bash
+set -e
+
+echo "Updating system..."
+sudo yum update -y
+
+echo "Installing Docker..."
+sudo yum install -y docker
+
+echo "Starting Docker..."
+sudo systemctl start docker
+
+echo "Enabling Docker to start on boot..."
+sudo systemctl enable docker
+
+echo "Adding current user to the docker group..."
+sudo usermod -aG docker $USER
+# newgrp docker
+
+echo "Install docker compose"
+mkdir -p ~/.docker/cli-plugins
+curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose
+chmod +x ~/.docker/cli-plugins/docker-compose
+
+echo "Docker and Docker Compose installation completed!"
