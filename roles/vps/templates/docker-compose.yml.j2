@@ -19,25 +19,24 @@ services:
       - CODES_ENABLE=no
     volumes:
       - ./data/webserver/:/var/www/html/:rw
+    networks:
+      - internal
 {% if appContainerName == 'php' %}
     depends_on:
-      database:
-        condition: service_healthy
+      - database
   database:
     image: mysql:8.0
     restart: always
-    ports:
-      - 3306:3306
     volumes:
       - "./data/mysql/:/var/lib/mysql/"
     environment:
-      - MYSQL_ALLOW_EMPTY_PASSWORD=yes
       - MYSQL_DATABASE={{ vps.databaseName }}
       - MYSQL_USER={{ vps.databaseUsername }}
       - MYSQL_PASSWORD={{ vps.databasePassword }}
-    healthcheck:
-      test: mysql --user=$MYSQL_USER --password=$MYSQL_PASSWORD --execute "USE $$MYSQL_DATABASE; SHOW TABLES;" || exit 1
-      interval: 1m
-      timeout: 20s
-      retries: 3
+      - MYSQL_ROOT_PASSWORD=root_{{ vps.databasePassword }}
+    networks:
+      - internal
 {% endif %}
+
+networks:
+  internal:
