@@ -149,7 +149,7 @@
             - name: Determine static files drupal
               set_fact:
                 staticFiles: "sites/default/files"
-                clearCache: "drush cr && drush cc all"
+                clearCache: "drush cr || drush cc all"
               when: applicationType is regex("^drupal+")
             - name: Determine static files Wordpress
               set_fact:
