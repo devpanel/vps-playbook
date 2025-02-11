@@ -28,35 +28,19 @@
         - include_tasks: "tasks/dp-task-error-handler.yml"
       block:
         - include_tasks: "./roles/tasks/install-docker.yml"
+        - set_fact:
+            sns_msg:
+              id: "{{ actionId }}"
+              status: "SUCCESS"
+              payload: {}
 
-- hosts: localhost
-  connection: local
-  tasks:
-    - set_fact:
-        sns_msg:
-          id: "{{ actionId }}"
-          status: "SUCCESS"
-          payload: {}
-
-    - name: Notify action with id {{ actionId }} is completed
-      uri:
-        url: "{{ callbackURL }}"
-        method: "{{ callbackMethod }}"
-        body_format: json
-        headers:
-          Authorization : "Bearer {{ callbackToken }}"
-        body: "{{ sns_msg | to_json }}"
-      when: callbackURL != ""
-      register: _result
-      until: _result.status == 200
-
-    - name: Send message to SNS
-      register: sns_op
-      sns:
-        subject: "Action {{ actionId }} SUCCESS"
-        msg: "{{ sns_msg | to_json }}"
-        profile: "remote-account"
-        topic: "{{ lookup('env', 'AWS_SNS_TOPIC_NAME') }}"
-        region: "{{ lookup('env', 'AWS_SNS_TOPIC_REGION') }}"
-        message_structure: "json"
-      when: callbackURL == ""
+        - name: Notify action with id {{ actionId }} is completed
+          uri:
+            url: "{{ callbackURL }}"
+            method: "{{ callbackMethod }}"
+            body_format: json
+            # headers:
+            #   Authorization : "Bearer {{ callbackToken }}"
+            body: "{{ sns_msg | to_json }}"
+          register: _result
+          until: _result.status == 200
