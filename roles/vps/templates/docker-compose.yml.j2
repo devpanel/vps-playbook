@@ -17,13 +17,18 @@ services:
       - DB_USER={{ vps.databaseUsername }}
       - DP_APP_ID={{ application.id }}
       - CODES_ENABLE=no
+{% if application.filePermissionLevel %}
+      - APACHE_RUN_USER=www
+      - APACHE_RUN_GROUP=www
+{% endif %}
     volumes:
       - ./data/webserver/:/var/www/html/:rw
     networks:
       - internal
 {% if appContainerName == 'php' %}
     depends_on:
-      - database
+      database:
+        condition: service_healthy
   database:
     image: mysql:8.0
     restart: always
@@ -36,6 +41,11 @@ services:
       - MYSQL_ROOT_PASSWORD=root_{{ vps.databasePassword }}
     networks:
       - internal
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u$MYSQL_USER", "-p$MYSQL_PASSWORD"]
+      interval: 1m
+      timeout: 20s
+      retries: 3
 {% endif %}
 
 networks:

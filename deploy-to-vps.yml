@@ -6,6 +6,7 @@
     applicationType: "{{ application.type }}"
     namespace: "{{ workspace.name }}"
     archiveName: "{{ application.name }}-code-{{ actionId }}"
+
   tasks:
     - name: "Rollout application to deployment"
       rescue:
@@ -111,20 +112,24 @@
   connection: ssh
   vars:
     workingDir: "~/.devpanel/{{ application.name }}"
+    APACHE_RUN_USER: "www-data"
+    APACHE_RUN_GROUP: "www-data"
+    looserPermission:  "{{ application.filePermissionLevel }}"
   tasks:
     - name: "Jump into VPS to execute commands"
       rescue:
         - include_tasks: "./tasks/dp-task-error-handler.yml"
       block:
-        - name: "check {{ workingDir }} is available or not"
+        - name: "Check {{ workingDir }}/docker-compose.yml is available or not"
           stat:
-            path: "{{ workingDir }}"
-          register: workingDirStat
+            path: "{{ workingDir }}/docker-compose.yml"
+          register: dockerComposeFile
 
-        - name: "Override docker compose file"
+        - name: "Create docker compose file"
           template:
             src: "roles/vps/templates/docker-compose.yml.j2"
             dest: "{{ workingDir }}/docker-compose.yml"
+          when: dockerComposeFile.stat.exists == false
 
         - name: "Start docker container"
           shell:
@@ -160,11 +165,17 @@
                 staticFiles: "images"
               when: applicationType is regex("^joomla+")
 
+            - name: Using looser permision
+              set_fact:
+                APACHE_RUN_USER: "www"
+                APACHE_RUN_GROUP: "www"
+              when: looserPermission
+            
             - name: "Correct File permission"
               shell:
                 chdir: "{{ workingDir }}"
                 cmd: |
-                  docker compose exec webserver bash -c "cd \$WEB_ROOT; sudo chown -R www-data:www {{ staticFiles }} && sudo chmod 775 {{ staticFiles }}" >> devpanel.logs;
+                  docker compose exec webserver bash -c "cd \$WEB_ROOT; sudo chown -R {{ APACHE_RUN_USER }}:{{ APACHE_RUN_GROUP }} {{ staticFiles }} && sudo chmod -R 775 {{ staticFiles }}" >> devpanel.logs;
               when: staticFiles is defined
               args:
                 warn: false
@@ -177,28 +188,19 @@
               args:
                 warn: false
 
+        - set_fact:
+            sns_msg:
+              id: "{{ actionId }}"
+              status: "SUCCESS"
+              payload: {}
 
-
-- hosts: localhost
-  connection: local
-  tasks:
-    - name: "Jump back to localhost to notify SUCCESS"
-      rescue:
-        - include_tasks: "./tasks/dp-task-error-handler.yml"
-      block:
-      - set_fact:
-          sns_msg:
-            id: "{{ actionId }}"
-            status: "SUCCESS"
-            payload: {}
-
-      - name: Notify action with id {{ actionId }} is completed
-        uri:
-          url: "{{ callbackURL }}"
-          method: "{{ callbackMethod }}"
-          body_format: json
-          # headers:
-          #   Authorization : "Bearer {{ callbackToken }}"
-          body: "{{ sns_msg | to_json }}"
-        register: _result
-        until: _result.status == 200
+        - name: Notify action with id {{ actionId }} is completed
+          uri:
+            url: "{{ callbackURL }}"
+            method: "{{ callbackMethod }}"
+            body_format: json
+            # headers:
+            #   Authorization : "Bearer {{ callbackToken }}"
+            body: "{{ sns_msg | to_json }}"
+          register: _result
+          until: _result.status == 200
