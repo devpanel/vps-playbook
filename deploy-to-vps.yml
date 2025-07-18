@@ -141,8 +141,6 @@
             chdir: "{{ workingDir }}"
             cmd: |
               docker compose exec webserver bash -c "cd \$APP_ROOT; bash .devpanel/vps/vps-deploy.sh" >> devpanel.logs;
-          args:
-            warn: false
 
         - name: "Correct file permisions"
           block:
@@ -177,16 +175,13 @@
                 cmd: |
                   docker compose exec webserver bash -c "cd \$WEB_ROOT; sudo chown -R {{ APACHE_RUN_USER }}:{{ APACHE_RUN_GROUP }} {{ staticFiles }} && sudo chmod -R 775 {{ staticFiles }}" >> devpanel.logs;
               when: staticFiles is defined
-              args:
-                warn: false
+
             - name: "Clear cache"
               shell:
                 chdir: "{{ workingDir }}"
                 cmd: |
                   docker compose exec webserver bash -c "cd \$WEB_ROOT; {{ clearCache }}" >> devpanel.logs;
               when: clearCache is defined
-              args:
-                warn: false
 
         - set_fact:
             sns_msg:
