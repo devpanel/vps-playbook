@@ -78,14 +78,3 @@
       when: callbackURL != ""
       register: _result
       until: _result.status == 200
-
-    - name: Send message to SNS
-      register: sns_op
-      sns:
-        subject: "Action {{ actionId }} SUCCESS"
-        msg: "{{ sns_msg | to_json }}"
-        profile: "remote-account"
-        topic: "{{ lookup('env', 'AWS_SNS_TOPIC_NAME') }}"
-        region: "{{ lookup('env', 'AWS_SNS_TOPIC_REGION') }}"
-        message_structure: "json"
-      when: callbackURL == ""
