@@ -6,6 +6,7 @@
       payload: {}
 
 - name: Notify action with id {{ actionId }} is error
+  delegate_to: localhost
   uri:
     url: "{{ callbackURL }}"
     method: "{{ callbackMethod }}"
