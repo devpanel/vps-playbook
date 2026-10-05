@@ -92,20 +92,15 @@
             execFileName: "{{ application.name }}-{{ lookup('pipe','date +%Y-%m-%d-%H-%M-%S') }}.sh"
             execFileLog: "deploy-vps-{{ lookup('pipe','date +%Y-%m-%d-%H-%M-%S') }}.log"
 
-        - name: generate executed script
-          template:
-            src: "./roles/vps/templates/executed-file.sh.j2"
-            dest: "/tmp/{{ execFileName }}"
-
         - name: "Render shell file on controller"
           delegate_to: localhost
           template:
-            src: /app/ansible/templates/trigger-git-hook.sh.j2
-            dest: /tmp/trigger-git-hook-{{ ansible_kubectl_pod }}.sh
+            src: /app/ansible/vps-playbook/roles/vps/templates/executed-file.sh.j2"
+            dest: /tmp/{{ execFileName }}
 
         - name: "Copy shell file into pod"
           delegate_to: localhost
-          shell: kubectl cp /tmp/trigger-git-hook-{{ ansible_kubectl_pod }}.sh {{ ansible_kubectl_namespace }}/{{ ansible_kubectl_pod }}:/tmp/trigger-git-hook.sh
+          shell: kubectl cp /tmp/{{ execFileName }} {{ ansible_kubectl_namespace }}/{{ ansible_kubectl_pod }}:/tmp/{{ execFileName }}
 
         - name: Run shell file
           raw: bash "/tmp/{{ execFileName }}" >> $APP_ROOT/.logs/{{ execFileLog }}
