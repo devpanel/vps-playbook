@@ -111,9 +111,6 @@
           delegate_to: localhost
           shell: kubectl cp /tmp/trigger-git-hook-{{ ansible_kubectl_pod }}.sh {{ ansible_kubectl_namespace }}/{{ ansible_kubectl_pod }}:/tmp/trigger-git-hook.sh
 
-        - name: 
-          shell: bash "/tmp/{{ execFileName }}" >> /tmp/devpanel.logs
-
         - name: Run shell file
           raw: bash "/tmp/{{ execFileName }}" >> $APP_ROOT/.logs/{{ execFileLog }}
 
