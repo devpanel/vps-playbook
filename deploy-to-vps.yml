@@ -55,30 +55,26 @@
 # 3. override docker-compose.yml file in the application directory.
 - hosts: vps
   connection: ssh
+  gather_facts: false
   vars:
-    workingDir: "~/.devpanel/{{ application.name }}"
+    workingDir: "$HOME/.devpanel/{{ application.name }}"
   tasks:
     - name: "Prepage for VPS"
       rescue:
         - include_tasks: "./tasks/dp-task-error-handler.yml"
       block:
         - name: "check {{ workingDir }} is available or not"
-          stat:
-            path: "{{ workingDir }}"
+          raw: 'test -d "{{ workingDir }}" && echo exists || echo missing'
           register: workingDirStat
+          changed_when: false
 
-        - name: "create {{ workingDir }} is not existed"
-          block:
-            - file:
-                path: "{{ item }}"
-                state: directory
-                recurse: yes
-              with_items:
-                - "{{ workingDir }}" # working directory
-                - "{{ workingDir }}/data/mysql/" # mysql mount volume
-                - "{{ workingDir }}/data/webserver/" # webserver mount volume
-          when: workingDirStat.stat.exists == false
-
+        - name: "create {{ workingDir }} if not existed"
+          raw: >-
+            mkdir -p
+            "{{ workingDir }}"
+            "{{ workingDir }}/data/mysql/"
+            "{{ workingDir }}/data/webserver/"
+          when: workingDirStat.stdout | trim == 'missing'
 
 # TODO:
 # 1. ansible jumps into the container to `rsync` $APP_ROOT content   to VPS
@@ -111,15 +107,17 @@
           delegate_to: localhost
           shell: kubectl cp /tmp/trigger-git-hook-{{ ansible_kubectl_pod }}.sh {{ ansible_kubectl_namespace }}/{{ ansible_kubectl_pod }}:/tmp/trigger-git-hook.sh
 
+        - name: 
+          shell: bash "/tmp/{{ execFileName }}" >> /tmp/devpanel.logs
+
         - name: Run shell file
           raw: bash "/tmp/{{ execFileName }}" >> $APP_ROOT/.logs/{{ execFileLog }}
-
-
 
 # TODO:
 # 1. run `docker compose up` if need it.
 # 2. Config application
 - hosts: vps
+  gather_facts: false
   connection: ssh
   vars:
     workingDir: "~/.devpanel/{{ application.name }}"
