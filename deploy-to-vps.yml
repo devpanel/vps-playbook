@@ -14,9 +14,9 @@
       block:
         - include_tasks: "/app/ansible/playbooks/tasks/dp-get-app-info.yml"
 
-        - name: write private key to $HOME/.devpanel/privKey
+        - name: write private key to ~/.devpanel/privKey
           copy:
-            dest: "$HOME/.devpanel/privKey"
+            dest: ~/.devpanel/privKey
             mode: '0400'
             content: |
               {{ vps.privKey }}
@@ -44,7 +44,7 @@
             hostname: "{{ vps.publicIpAddress }}"
             groups:
             - vps
-            ansible_ssh_private_key_file: "$HOME/.devpanel/privKey"
+            ansible_ssh_private_key_file: '~/.devpanel/privKey'
             ansible_host_key_checking: false
             ansible_user: "{{ vps.username }}"
             archiveName: "{{ archiveName }}"
