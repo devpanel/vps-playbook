@@ -60,21 +60,11 @@
     workingDir: "$HOME/.devpanel/{{ application.name }}"
   tasks:
     - name: "Prepage for VPS"
-      rescue:
-        - include_tasks: "./tasks/dp-task-error-handler.yml"
-      block:
-        - name: "check {{ workingDir }} is available or not"
-          raw: 'test -d "{{ workingDir }}" && echo exists || echo missing'
-          register: workingDirStat
-          changed_when: false
-
-        - name: "create {{ workingDir }} if not existed"
-          raw: >-
-            mkdir -p
-            "{{ workingDir }}"
-            "{{ workingDir }}/data/mysql/"
-            "{{ workingDir }}/data/webserver/"
-          when: workingDirStat.stdout | trim == 'missing'
+      raw: >-
+        mkdir -p
+        "{{ workingDir }}"
+        "{{ workingDir }}/data/mysql/"
+        "{{ workingDir }}/data/webserver/"
 
 # TODO:
 # 1. ansible jumps into the container to `rsync` $APP_ROOT content   to VPS
