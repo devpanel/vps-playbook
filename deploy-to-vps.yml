@@ -95,7 +95,7 @@
         - name: "Render shell file on controller"
           delegate_to: localhost
           template:
-            src: /app/ansible/vps-playbook/roles/vps/templates/executed-file.sh.j2"
+            src: /app/ansible/vps-playbook/roles/vps/templates/executed-file.sh.j2
             dest: /tmp/{{ execFileName }}
 
         - name: "Copy shell file into pod"
