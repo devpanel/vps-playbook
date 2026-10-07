@@ -51,39 +51,25 @@
 
 # TODO:
 # 1. ansible jumps into the VPS
-# 2. ansible checks if the working application directory is not existing, ansible will create ($HOME/.devpanel/{{ application.name }}/)
+# 2. ansible checks if the working application directory is not existing, ansible will create (~/.devpanel/{{ application.name }}/)
 # 3. override docker-compose.yml file in the application directory.
 - hosts: vps
   connection: ssh
+  gather_facts: false
   vars:
-    workingDir: "~/.devpanel/{{ application.name }}"
+    workingDir: "$HOME/.devpanel/{{ application.name }}"
   tasks:
-    - name: "Prepage for VPS"
-      rescue:
-        - include_tasks: "./tasks/dp-task-error-handler.yml"
-      block:
-        - name: "check {{ workingDir }} is available or not"
-          stat:
-            path: "{{ workingDir }}"
-          register: workingDirStat
-
-        - name: "create {{ workingDir }} is not existed"
-          block:
-            - file:
-                path: "{{ item }}"
-                state: directory
-                recurse: yes
-              with_items:
-                - "{{ workingDir }}" # working directory
-                - "{{ workingDir }}/data/mysql/" # mysql mount volume
-                - "{{ workingDir }}/data/webserver/" # webserver mount volume
-          when: workingDirStat.stat.exists == false
-
+    - name: "Create work directory"
+      raw: >-
+        mkdir -p
+        "{{ workingDir }}/data/mysql/"
+        "{{ workingDir }}/data/webserver/"
+      register: result
 
 # TODO:
 # 1. ansible jumps into the container to `rsync` $APP_ROOT content   to VPS
-
 - hosts: executedPods
+  gather_facts: false
   connection: kubectl
   vars:
     dest: "~/.devpanel/{{ application.name }}/data/webserver/"
@@ -93,25 +79,30 @@
         - include_tasks: "./tasks/dp-task-error-handler.yml"
       block:
         - set_fact:
-            dumpFilename: "{{ application.name }}-db-{{ lookup('pipe','date +%Y-%m-%d-%H-%M-%S') }}"
             execFileName: "{{ application.name }}-{{ lookup('pipe','date +%Y-%m-%d-%H-%M-%S') }}.sh"
+            execFileLog: "deploy-vps-{{ lookup('pipe','date +%Y-%m-%d-%H-%M-%S') }}.log"
 
-        - name: generate executed script
+        - name: "Render shell file on controller"
+          delegate_to: localhost
           template:
-            src: "./roles/vps/templates/executed-file.sh.j2"
-            dest: "/tmp/{{ execFileName }}"
+            src: /app/ansible/vps-playbook/roles/vps/templates/executed-file.sh.j2
+            dest: /tmp/{{ execFileName }}
 
-        - name: run executed script
-          shell: bash "/tmp/{{ execFileName }}" >> /tmp/devpanel.logs
+        - name: "Copy shell file into pod"
+          delegate_to: localhost
+          shell: kubectl cp /tmp/{{ execFileName }} {{ ansible_kubectl_namespace }}/{{ ansible_kubectl_pod }}:/tmp/{{ execFileName }}
 
+        - name: Run shell file
+          raw: bash "/tmp/{{ execFileName }}" >> $APP_ROOT/.logs/{{ execFileLog }}
 
 # TODO:
 # 1. run `docker compose up` if need it.
 # 2. Config application
 - hosts: vps
+  gather_facts: false
   connection: ssh
   vars:
-    workingDir: "~/.devpanel/{{ application.name }}"
+    workingDir: "$HOME/.devpanel/{{ application.name }}"
     APACHE_RUN_USER: "www-data"
     APACHE_RUN_GROUP: "www-data"
     looserPermission:  "{{ application.filePermissionLevel }}"
@@ -183,19 +174,28 @@
                   docker compose exec webserver bash -c "cd \$WEB_ROOT; {{ clearCache }}" >> devpanel.logs;
               when: clearCache is defined
 
-        - set_fact:
-            sns_msg:
-              id: "{{ actionId }}"
-              status: "SUCCESS"
-              payload: {}
+- hosts: localhost
+  connection: local
+  tasks:
+    - name: Delete privatekey directory
+      file:
+        path: ~/.devpanel/privKey
+        state: absent
 
-        - name: Notify action with id {{ actionId }} is completed
-          uri:
-            url: "{{ callbackURL }}"
-            method: "{{ callbackMethod }}"
-            body_format: json
-            # headers:
-            #   Authorization : "Bearer {{ callbackToken }}"
-            body: "{{ sns_msg | to_json }}"
-          register: _result
-          until: _result.status == 200
+    - set_fact:
+        sns_msg:
+          id: "{{ actionId }}"
+          status: "SUCCESS"
+          payload: {}
+
+    - name: Notify action with id {{ actionId }} is completed
+      uri:
+        url: "{{ callbackURL }}"
+        method: "{{ callbackMethod }}"
+        body_format: json
+        headers:
+          Authorization : "Bearer {{ callbackToken }}"
+        body: "{{ sns_msg | to_json }}"
+      when: callbackURL != ""
+      register: _result
+      until: _result.status == 200
